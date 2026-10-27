@@ -1,0 +1,22 @@
+# Proposal status — 27 October 2026
+
+Version 0.9.0 implements the first music-editing workflow: discovery and browsing, source cuts and processing, common-format import, native generation and converted preview, projects/recovery drafts, native/mod ZIP exports and app-owned single-archive Apply/Restore.
+
+Additional implemented features include voice/announcer browsing, localization-linked descriptions, personal labels and Art Deco record decks. Voice/SFX bank replacement remains a later milestone.
+
+## Release position
+
+The first public release is a preview. Packaging supplies the .NET runtime and a minimal FFmpeg decoder built from pinned source, with matching source/build information. The GitHub Actions workflow validates codec imports, conversion, project/source reopening, exports, installation/recovery and application startup using synthetic fixtures without a game installation.
+
+Local evidence includes all 24 configured target profiles, independent decoding, real music-archive preservation, 22 installation/recovery scenarios and user-confirmed menu replacement with two clean loops. Restore returned the exact original archive hash. See docs/VALIDATION.md and the workflow run for results at the release commit.
+
+## Still open
+
+- Full clean-user-PC interactive acceptance and Windows codec availability beyond tested systems.
+- Explicit intro-transition and post-Restore audible checks; broader stage, alternate-music and game-build coverage.
+- Loader requirements without the locally recognized setup; custom loaders are unverified.
+- Broader OS/filesystem/power-loss acceptance. Generic multi-archive installation is unsupported and is not claimed.
+- Expansion beyond the 24 configured music pairs, including product support for the diagnostic menu pair.
+- Voice/SFX bank replacement and structural/event mappings as a separate future milestone.
+
+The original proposal remains in PROPOSAL.md. Historical development detail is in docs/DEVELOPMENT-HISTORY.md and Research/FINDINGS.md; private test reports and game-derived fixtures are not distributed.

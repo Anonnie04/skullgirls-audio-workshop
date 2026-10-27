@@ -1,0 +1,10 @@
+.build/
+Research/run-*/
+**/bin/
+**/obj/
+**/__pycache__/
+dist/
+artifacts/
+vendor/ffmpeg/*
+!vendor/ffmpeg/README.md
+*.user

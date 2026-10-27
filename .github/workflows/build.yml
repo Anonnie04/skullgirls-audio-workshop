@@ -1,0 +1,71 @@
+name: Release validation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  decoder:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 make
+      - run: bash Tools/build-ffmpeg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-decoder
+          path: vendor/ffmpeg/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decoder-source
+          path: artifacts/
+  windows:
+    needs: decoder
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-decoder
+          path: vendor/ffmpeg
+      - uses: actions/download-artifact@v4
+        with:
+          name: decoder-source
+          path: artifacts
+      - name: Synthetic imports, conversion, projects, exports and recovery
+        shell: pwsh
+        run: |
+          dotnet build Tests/Tests.csproj -c Release -p:NuGetAudit=false
+          if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
+          dotnet Tests/bin/Release/net9.0/Tests.dll --release .build/release-checks
+          if ($LASTEXITCODE -ne 0) { throw 'Release fixtures failed' }
+      - name: Build portable application
+        shell: pwsh
+        run: ./Build.ps1 -Portable -OutputDirectory .build/release-publish
+      - name: Self-contained startup smoke test
+        shell: pwsh
+        run: |
+          $env:DOTNET_ROOT = Join-Path $PWD '.build/empty-runtime'
+          $env:DOTNET_MULTILEVEL_LOOKUP = '0'
+          New-Item -ItemType Directory $env:DOTNET_ROOT -Force | Out-Null
+          $app = Start-Process -FilePath '.build/release-publish/SkullgirlsAudioWorkshop.exe' -ArgumentList '--smoke-test' -PassThru -WindowStyle Hidden
+          if (-not $app.WaitForExit(30000)) { $app.Kill(); throw 'Startup smoke test timed out' }
+          if ($app.ExitCode -ne 0) { throw 'Startup smoke test failed' }
+      - name: Package clean binaries and matching source
+        shell: pwsh
+        run: ./Package.ps1 -PublishDirectory .build/release-publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-results
+          path: .build/release-checks/**/*.json
