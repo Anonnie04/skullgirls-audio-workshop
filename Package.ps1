@@ -2,7 +2,10 @@ param([Parameter(Mandatory=$true)][string]$PublishDirectory)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $sourceChanges = @(git status --porcelain)
-if ($LASTEXITCODE -ne 0 -or $sourceChanges.Count -gt 0) { throw 'Commit intended source changes before packaging; the application source ZIP must match the release commit.' }
+if ($LASTEXITCODE -ne 0 -or $sourceChanges.Count -gt 0) {
+    $sourceChanges | Write-Host
+    throw 'Commit intended source changes before packaging; the application source ZIP must match the release commit.'
+}
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $version = ([xml](Get-Content App/App.csproj -Raw)).Project.PropertyGroup.Version
 foreach ($required in @('SkullgirlsAudioWorkshop.exe','coreclr.dll','System.Windows.Forms.dll','LICENSE','THIRD-PARTY-NOTICES.md','tools/ffmpeg/ffmpeg.exe','tools/ffmpeg/SOURCE.txt','tools/ffmpeg/COPYING.LGPLv2.1')) {
