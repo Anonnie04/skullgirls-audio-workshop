@@ -17,7 +17,8 @@ cd "$work/ffmpeg-8.1.3"
   --enable-protocol=file,pipe --enable-demuxer=wav,mp3,flac,ogg,mov,aac,asf,aiff \
   --enable-decoder=pcm_s8,pcm_u8,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_s16be,pcm_s24be,pcm_s32be,pcm_f32be,pcm_f64be,adpcm_ms,mp3,mp3float,flac,vorbis,opus,aac,wmav1,wmav2,wmapro,wmalossless,alac \
   --enable-parser=aac,aac_latm,flac,mpegaudio,opus,vorbis \
-  --enable-muxer=s16le --enable-encoder=pcm_s16le --enable-filter=aresample,aformat,anull
+  --enable-muxer=pcm_s16le --enable-encoder=pcm_s16le --enable-filter=aresample,aformat,anull
+grep -q '^CONFIG_PCM_S16LE_MUXER=yes' ffbuild/config.mak
 make -j"$(nproc)"
 cp ffmpeg.exe "$out/ffmpeg.exe"
 cp COPYING.LGPLv2.1 COPYING.LGPLv3 LICENSE.md "$out/"

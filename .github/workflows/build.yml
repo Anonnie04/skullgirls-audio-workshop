@@ -11,8 +11,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 make
-      - run: bash Tools/build-ffmpeg.sh
+      - uses: actions/cache@v4
+        id: decoder-cache
+        with:
+          path: |
+            vendor/ffmpeg
+            artifacts
+          key: decoder-8.1.3-${{ hashFiles('Tools/build-ffmpeg.sh') }}
+      - if: steps.decoder-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 make
+      - if: steps.decoder-cache.outputs.cache-hit != 'true'
+        run: bash Tools/build-ffmpeg.sh
       - uses: actions/upload-artifact@v4
         with:
           name: release-decoder
