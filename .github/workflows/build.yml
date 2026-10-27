@@ -25,7 +25,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: release-decoder
-          path: vendor/ffmpeg/
+          # Keep the tracked README from checkout; cache/artifact line endings may differ.
+          path: |
+            vendor/ffmpeg/*
+            !vendor/ffmpeg/README.md
       - uses: actions/upload-artifact@v4
         with:
           name: decoder-source
