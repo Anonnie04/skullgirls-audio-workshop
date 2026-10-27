@@ -1,4 +1,4 @@
-# 0.9.0 — first public preview
+# 0.9.0 — first public release
 
 A standalone Windows x64 music replacement editor with Skullgirls-inspired Art Deco styling.
 
@@ -10,7 +10,7 @@ A standalone Windows x64 music replacement editor with Skullgirls-inspired Art D
 - Single-music-archive Apply/Restore with scoped backups, journals, staged verification and restart recovery.
 - Self-contained .NET runtime and a minimal FFmpeg decoder with corresponding source/build information.
 
-The user confirmed changed main-menu music and two clean loops; Restore returned the exact original archive hash. This is a prerelease with the compatibility limits documented in COMPATIBILITY.md. The editor exposes 24 configured intro/loop music pairs; voice/SFX replacement and arbitrary singleton/menu editing are not included.
+The user confirmed changed main-menu music and two clean loops; Restore returned the exact original archive hash. The downloaded release package has been confirmed working by the user. Compatibility limits are documented in COMPATIBILITY.md. The editor exposes 24 configured intro/loop music pairs; voice/SFX replacement and arbitrary singleton/menu editing are not included.
 
 Download the win-x64 ZIP, extract everything to a writable folder outside the game, and run SkullgirlsAudioWorkshop.exe. Keep installation-backups, drafts, personal labels and projects when updating. Game assets and compatibility loaders are not included.
 

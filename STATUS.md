@@ -6,7 +6,7 @@ Additional implemented features include voice/announcer browsing, localization-l
 
 ## Release position
 
-The first public release is a preview. Packaging supplies the .NET runtime and a minimal FFmpeg decoder built from pinned source, with matching source/build information. The GitHub Actions workflow validates codec imports, conversion, project/source reopening, exports, installation/recovery and application startup using synthetic fixtures without a game installation.
+Version 0.9.0 is the first stable public release. The user downloaded the published Windows package and confirmed it works. Packaging supplies the .NET runtime and a minimal FFmpeg decoder built from pinned source, with matching source/build information. The GitHub Actions workflow validates codec imports, conversion, project/source reopening, exports, installation/recovery and application startup using synthetic fixtures without a game installation.
 
 Local evidence includes all 24 configured target profiles, independent decoding, real music-archive preservation, 22 installation/recovery scenarios and user-confirmed menu replacement with two clean loops. Restore returned the exact original archive hash. See docs/VALIDATION.md and the workflow run for results at the release commit.
 

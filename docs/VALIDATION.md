@@ -21,4 +21,4 @@ The workflow also builds a self-contained application, checks startup with an em
 
 ## Remaining acceptance
 
-Broader game builds and stage/alternate-music behavior, an explicitly isolated intro transition, audible post-Restore menu verification, full clean-user-PC interaction and broader OS/power-loss acceptance remain open. The first public release is marked prerelease for this reason.
+Broader game builds and stage/alternate-music behavior, an explicitly isolated intro transition, audible post-Restore menu verification, full clean-user-PC interaction and broader OS/power-loss acceptance remain open. Version 0.9.0 was promoted to a stable release after the user downloaded the published package and confirmed it works. This confirmation does not expand the documented game-build or target scope.

@@ -3,7 +3,7 @@
 A Windows music replacement editor for Skullgirls, with an Art Deco record-player interface.
 Browse game audio, prepare an intro and loop, hear the converted result, then export a mod or apply it with a verified backup.
 
-**Version 0.9.0 — preview release.** Local menu replacement and two loop boundaries have been confirmed in-game. Broader game-build and clean-PC acceptance is ongoing.
+**Version 0.9.0.** The downloaded Windows package has been confirmed working by the user. Local menu replacement and two loop boundaries have been confirmed in-game; broader game-build coverage remains ongoing.
 
 ## Download and run
 
@@ -11,7 +11,7 @@ Browse game audio, prepare an intro and loop, hear the converted result, then ex
 2. Extract the entire ZIP into a writable folder outside the game, such as Documents. Do not run it inside the ZIP.
 3. Run **SkullgirlsAudioWorkshop.exe**.
 
-The portable Windows x64 download includes the .NET runtime and audio decoder. No separate Mod Manager, FFmpeg installation or .NET installation is required. Windows 10/11 x64 is the intended platform; full clean-PC testing is still open. Windows supplies the ADPCM encoder, which must be available for generation.
+The portable Windows x64 download includes the .NET runtime and audio decoder. No separate Mod Manager, FFmpeg installation or .NET installation is required. Windows 10/11 x64 is the intended platform; broader clean-PC testing remains ongoing. Windows supplies the ADPCM encoder, which must be available for generation.
 
 You need your own supported PC game installation. Game audio, game archives and game-side compatibility loaders are not included. Automatic discovery opens the current Steam installation; **Open installation** selects another installation. Opening the library does not launch the game.
 

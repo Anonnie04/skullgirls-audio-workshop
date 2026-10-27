@@ -1,6 +1,6 @@
 # Compatibility and known limits
 
-Version 0.9.0 is a preview for Windows x64. The portable package includes .NET and FFmpeg; native encoding uses Windows ACM. The CI startup check and isolated fixtures do not replace full testing on a clean user's PC.
+Version 0.9.0 is released for Windows x64. The user downloaded the published package and confirmed it works. The portable package includes .NET and FFmpeg; native encoding uses Windows ACM. The CI startup check and isolated fixtures do not replace full testing on a clean user's PC.
 
 ## Game evidence
 

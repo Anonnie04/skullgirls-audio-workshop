@@ -1,7 +1,7 @@
 # Skullgirls Audio Workshop — product proposal
 
 Date: 26 October 2026  
-Status: Original specification; the version 0.9.0 music workflow is implemented as a public preview. See [STATUS.md](STATUS.md) for current evidence, supported scope and remaining release acceptance.
+Status: Original specification; the version 0.9.0 music workflow is implemented in the public 0.9.0 release. See [STATUS.md](STATUS.md) for current evidence, supported scope and remaining release acceptance.
 
 ## Purpose
 
