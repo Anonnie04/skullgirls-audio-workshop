@@ -22,3 +22,10 @@ The workflow also builds a self-contained application, checks startup with an em
 ## Remaining acceptance
 
 Broader game builds and stage/alternate-music behavior, an explicitly isolated intro transition, audible post-Restore menu verification, full clean-user-PC interaction and broader OS/power-loss acceptance remain open. Version 0.9.0 was promoted to a stable release after the user downloaded the published package and confirmed it works. This confirmation does not expand the documented game-build or target scope.
+
+
+## 0.10.0 additions (27 October 2026)
+
+Release fixtures now include multi-song project/source round trips, independent edits, duplicate and stale-input rejection, combined folder/ZIP exports, and isolated collection Apply/Restore and interrupted-operation recovery. Crop and intro-bypass checks verify source frame zero, cropped duration, legacy settings, and the required silent native intro block. Decimal 10 ms marker spacing has a regression check.
+
+A private local 21-song test generated and independently decoded 42 replacements with no clipped samples, applied one music archive, and verified all 58 unrelated entries unchanged. The user confirmed full-song looping and separate-intro playback/looping on two stages. An initial static report on the full-song track remains unresolved; the compared first six seconds closely matched the source and contained no extra initial burst. This does not establish every track, repeated boundary or game build as verified. No soundtrack files or game-derived test fixtures are distributed.

@@ -16,10 +16,14 @@ internal sealed class MusicEditorForm : Form
     private readonly NumericUpDown start = Number("Intro start"), loop = Number("Loop start"), end = Number("Loop end"), gain = Number("Gain dB", -60, 24), fadeIn = Number("Intro fade in"), fadeOut = Number("Loop fade out"), crossfade = Number("Loop crossfade"), zoom = Number("Waveform zoom", 1, 32);
     private readonly EditorScroll scroll = new() { Dock = DockStyle.Fill, AccessibleName = "Waveform scroll" };
     private readonly ComboBox mode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 175, AccessibleName = "Waveform click action" };
-    private readonly Label sourceInfo = Label("Import WAV, MP3, FLAC, OGG/Opus, M4A/AAC, WMA or AIFF. Extended imports decode to stereo PCM16 at 44.1 kHz."), status = Label("Ready"), metrics = Label("Save a project to keep your source, cuts and processing settings.");
+    private readonly Label sourceInfo = Label("Drop a song here or choose Import audio…\nWAV, MP3, FLAC, OGG/Opus, M4A/AAC, WMA or AIFF."), status = Label("Ready"), metrics = Label("Save a project to keep your source, cuts and processing settings.");
     private readonly TextBox output = new() { Dock = DockStyle.Fill, ReadOnly = true, AccessibleName = "Verified output folder" };
     private readonly Button import = Button("Import audio…"), original = Button("Play original"), raw = Button("Play source"), preview = Button("Preview edits"), generate = Button("Generate & verify"), converted = Button("Play converted"), pause = Button("Pause"), stop = Button("Stop"), cancel = Button("Cancel operation");
     private readonly DecoToggleButton repeat = new() { Checked = true, AutoSize = true };
+    private readonly CheckBox skipIntro = new() { Text = "Start full song (skip intro)", AutoSize = true, AccessibleName = "Start full song and skip intro" };
+    private readonly ToolStripMenuItem useInMod = new("Use in mod project");
+    private readonly bool collectionMode;
+    public AudioProject? ModSong { get; private set; }
     private readonly Button editSource = Button("Edit source…");
     private readonly List<Control> editable = [];
     private bool updating, sourcePlayback;
@@ -42,8 +46,9 @@ internal sealed class MusicEditorForm : Form
     private bool dirty, closingApproved;
     internal static string DraftFolder => Path.Combine(AppContext.BaseDirectory, "drafts");
     private readonly LoadedProject? opening;
-    public MusicEditorForm(MusicTarget target, LoadedProject? opening = null)
+    public MusicEditorForm(MusicTarget target, LoadedProject? opening = null, bool collectionMode = false)
     {
+        this.collectionMode = collectionMode;
         this.target = target; this.opening = opening; exportDetails = new(target.Track.Name);
         Text = "Skullgirls Audio Workshop — Music replacement editor"; ClientSize = new(1200, 960); MinimumSize = new(1140, 900); StartPosition = FormStartPosition.CenterParent;
         Font = new("Segoe UI", 10); BackColor = DecoTheme.Ink; ForeColor = DecoTheme.Ivory; DoubleBuffered = true; DecoTheme.StyleTitleBar(this);
@@ -55,7 +60,9 @@ internal sealed class MusicEditorForm : Form
         var projectMenu = new MenuStrip { BackColor = DecoTheme.Surface, ForeColor = DecoTheme.Ivory, Padding = new(20, 5, 12, 5), Renderer = new ToolStripProfessionalRenderer(new DecoMenuColors()) };
         exportMenu.DropDownItems.AddRange([editModDetails, exportNative, exportPackage]);
         foreach (ToolStripItem item in exportMenu.DropDownItems) item.ForeColor = DecoTheme.Ivory;
-        projectMenu.Items.AddRange([saveProject, saveAs, copySource, exportMenu, installation, projectLabel]); Controls.Add(projectMenu); MainMenuStrip = projectMenu;
+        projectMenu.Items.AddRange([saveProject, saveAs, copySource, exportMenu, installation, useInMod, projectLabel]); Controls.Add(projectMenu); MainMenuStrip = projectMenu;
+        useInMod.Visible = collectionMode; installation.Visible = !collectionMode;
+        useInMod.Click += (_, _) => { try { if (source == null || operation != null) return; Settings().Validate(source); source.AssertUnchanged(); target.AssertUnchanged(); ModSong = Snapshot(); closingApproved = true; DialogResult = DialogResult.OK; Close(); } catch (Exception ex) { status.Text = ex.Message; } };
         installation.Click += (_, _) =>
         {
             Stop(); using var dialog = new InstallationDialog(target.GameFolder, target, generated, source, source == null ? null : Settings()); dialog.ShowDialog(this);
@@ -74,6 +81,7 @@ internal sealed class MusicEditorForm : Form
         sourceDisc.SetPalette(Color.FromArgb(35, 91, 141), Color.FromArgb(29, 57, 82), Color.FromArgb(16, 29, 46));
         var sourceDeck = Deck("SIDE A  /  SOURCE", sourceDisc, sourceInfo, [Row(import), Row(editSource), Row(raw)], new(0, 0, 8, 0));
         sourceDeck.BackColor = Color.FromArgb(20, 32, 48);
+        EnableSourceDrop(sourceDeck); EnableSourceDrop(wave);
         decks.Controls.Add(sourceDeck, 0, 0);
         decks.Controls.Add(Deck("SIDE B  /  TARGET", targetDisc, targetInfo, [Row(original), Row(preview, converted), Row(generate)], new(8, 0, 0, 0)), 1, 0);
         sourceDisc.SetClip("Side A · Import a source"); targetDisc.SetClip("Side B · " + target.Track.Name);
@@ -81,12 +89,13 @@ internal sealed class MusicEditorForm : Form
         mode.Items.AddRange(["Seek source", "Set intro start", "Set loop start", "Set loop end"]); mode.SelectedIndex = 0; zoom.Value = 1;
         var navigation = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; navigation.ColumnStyles.Add(new(SizeType.Absolute, 450)); navigation.ColumnStyles.Add(new(SizeType.Percent, 100)); navigation.RowStyles.Add(new(SizeType.Percent, 100));
         navigation.Controls.Add(Row(Caption("Click:"), mode, Caption("Zoom"), zoom), 0, 0); navigation.Controls.Add(scroll, 1, 0); layout.Controls.Add(navigation, 0, 3);
-        layout.Controls.Add(Row(Caption("Intro start (s)"), start, Caption("Loop start (s)"), loop, Caption("Loop end (s)"), end), 0, 4);
+        layout.Controls.Add(Row(Caption("Intro start (s)"), start, Caption("Loop start (s)"), loop, Caption("Crop end (s)"), end, skipIntro), 0, 4);
         layout.Controls.Add(Row(Caption("Gain (dB)"), gain, Caption("Intro fade (s)"), fadeIn, Caption("Loop fade (s)"), fadeOut, Caption("Crossfade (s)"), crossfade), 0, 5);
         layout.Controls.Add(Row(pause, stop, repeat, cancel, Caption("Crossfade shortens the loop by the overlap duration.")), 0, 6);
         var review = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 }; review.RowStyles.Add(new(SizeType.Percent, 100)); review.RowStyles.Add(new(SizeType.Absolute, 30)); review.Controls.Add(metrics, 0, 0); review.Controls.Add(output, 0, 1); layout.Controls.Add(review, 0, 7); layout.Controls.Add(status, 0, 8);
         editable.AddRange([import, original, raw, preview, generate, converted, editSource, start, loop, end, gain, fadeIn, fadeOut, crossfade, zoom, mode, scroll, wave]);
         foreach (var n in new[] { start, loop, end, gain, fadeIn, fadeOut, crossfade }) n.ValueChanged += (_, _) => Changed();
+        skipIntro.CheckedChanged += (_, _) => { if (skipIntro.Checked) wave.Position = 0; Changed(); };
         zoom.ValueChanged += (_, _) => View(); scroll.ValueChanged += (_, _) => View();
         wave.Clicked += seconds =>
         {
@@ -94,20 +103,12 @@ internal sealed class MusicEditorForm : Form
             if (mode.SelectedIndex == 0) { Stop(); wave.Position = seconds; status.Text = $"Source cursor: {seconds:N3} s"; }
             else { var number = mode.SelectedIndex == 1 ? start : mode.SelectedIndex == 2 ? loop : end; number.Value = Math.Clamp((decimal)seconds, number.Minimum, number.Maximum); }
         };
+        wave.MarkerMoved += (marker, seconds) => { if (source == null || operation != null) return; var number = marker == WaveMarker.Intro ? start : marker == WaveMarker.Loop ? loop : end; number.Value = Math.Clamp((decimal)seconds, number.Minimum, number.Maximum); };
         import.Click += async (_, _) =>
         {
             using var dialog = new OpenFileDialog { Filter = SourceAudioDecoder.FileFilter, Title = "Import replacement source" };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
-            await Work("Reading and validating source…", token => { token.ThrowIfCancellationRequested(); var loaded = AudioSource.Open(dialog.FileName, token); var peaks = loaded.Audio.Peaks(32768); token.ThrowIfCancellationRequested(); return (loaded, peaks); }, result =>
-            {
-                source = result.loaded; sourceName = Path.GetFileName(source.Path); generated = null; output.Text = ""; updating = true;
-                foreach (var n in new[] { start, loop, end, fadeIn, fadeOut, crossfade }) n.Maximum = (decimal)source.Audio.Source.Seconds;
-                start.Value = 0; loop.Value = Math.Min(10m, (decimal)source.Audio.Source.Seconds / 4); end.Value = (decimal)source.Audio.Source.Seconds; gain.Value = fadeIn.Value = fadeOut.Value = crossfade.Value = 0; zoom.Value = 1; scroll.Value = 0; updating = false;
-                wave.Peaks = result.peaks; wave.Duration = source.Audio.Source.Seconds; wave.Position = 0; View(); Changed();
-                sourceInfo.Text = $"{Path.GetFileName(source.Path)} · {source.Audio.Source.Seconds:N3} s · {source.Audio.Source.Rate:N0} Hz · {source.Audio.Source.Channels} channel(s)\n{source.Path}";
-                sourceDisc.SetClip("Side A · " + Path.GetFileNameWithoutExtension(source.Path));
-                status.Text = "Source imported. Set intro and loop boundaries, then preview or generate.";
-            });
+            await ImportSource(dialog.FileName);
         };
         raw.Click += (_, _) => { if (source != null) Play(new(source.Audio.Pcm, source.Audio.Source.Rate, source.Audio.Source.Channels, 0), true, wave.Position); };
         editSource.Click += (_, _) =>
@@ -115,7 +116,7 @@ internal sealed class MusicEditorForm : Form
             if (source == null) return; Stop();
             using var editor = new SourceEditorForm(source, Settings(), wave.Peaks, sourceName);
             if (editor.ShowDialog(this) != DialogResult.OK) return;
-            updating = true; start.Value = (decimal)editor.Result.Start; loop.Value = (decimal)editor.Result.LoopStart; end.Value = (decimal)editor.Result.End; updating = false;
+            updating = true; start.Value = (decimal)editor.Result.Start; loop.Value = (decimal)editor.Result.LoopStart; end.Value = (decimal)editor.Result.End; skipIntro.Checked = editor.Result.SkipIntro; updating = false;
             Changed(); targetDisc.SetClip("Side B · " + target.Track.Name); status.Text = "Source cuts updated. Preview edits or generate the replacement to hear all processing.";
         };
         preview.Click += async (_, _) =>
@@ -161,7 +162,43 @@ internal sealed class MusicEditorForm : Form
         };
         DecoTheme.Apply(this); Ready();
     }
-    private EditSettings Settings() => new((double)start.Value, (double)loop.Value, (double)end.Value, (double)gain.Value, (double)fadeIn.Value, (double)fadeOut.Value, (double)crossfade.Value);
+    private static string? DroppedSource(IDataObject? data)
+    {
+        try
+        {
+            if (data?.GetDataPresent(DataFormats.FileDrop) != true || data.GetData(DataFormats.FileDrop) is not string[] { Length: 1 } files) return null;
+            string path = files[0]; return File.Exists(path) && SourceAudioDecoder.SupportsFile(path) ? path : null;
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException or InvalidOperationException or ArgumentException) { return null; }
+    }
+    private void EnableSourceDrop(Control control)
+    {
+        control.AllowDrop = true;
+        void Dragging(object? sender, DragEventArgs e) => e.Effect = operation == null && (e.AllowedEffect & DragDropEffects.Copy) != 0 && DroppedSource(e.Data) != null ? DragDropEffects.Copy : DragDropEffects.None;
+        control.DragEnter += Dragging; control.DragOver += Dragging;
+        control.DragDrop += async (_, e) =>
+        {
+            if (operation != null) return;
+            string? path = DroppedSource(e.Data);
+            if (path == null) { status.Text = "Drop one supported audio file onto Side A or the waveform."; return; }
+            await ImportSource(path);
+        };
+        foreach (Control child in control.Controls) EnableSourceDrop(child);
+    }
+    private async Task ImportSource(string path)
+    {
+        await Work("Reading and validating source…", token => { var loaded = AudioSource.Open(path, token); var peaks = loaded.Audio.Peaks(32768); token.ThrowIfCancellationRequested(); return (loaded, peaks); }, result =>
+        {
+            source = result.loaded; sourceName = Path.GetFileName(source.Path); generated = null; output.Text = ""; updating = true;
+            foreach (var n in new[] { start, loop, end, fadeIn, fadeOut, crossfade }) n.Maximum = (decimal)source.Audio.Source.Seconds;
+            start.Value = 0; loop.Value = Math.Min(10m, (decimal)source.Audio.Source.Seconds / 4); end.Value = (decimal)source.Audio.Source.Seconds; gain.Value = fadeIn.Value = fadeOut.Value = crossfade.Value = 0; skipIntro.Checked = false; zoom.Value = 1; scroll.Value = 0; updating = false;
+            wave.Peaks = result.peaks; wave.Duration = source.Audio.Source.Seconds; wave.Position = 0; View(); Changed();
+            sourceInfo.Text = $"{Path.GetFileName(source.Path)} · {source.Audio.Source.Seconds:N3} s · {source.Audio.Source.Rate:N0} Hz · {source.Audio.Source.Channels} channel(s)\n{source.Path}";
+            sourceDisc.SetClip("Side A · " + Path.GetFileNameWithoutExtension(source.Path));
+            status.Text = "Source imported. Set intro and loop boundaries, then preview or generate.";
+        });
+    }
+    private EditSettings Settings() => new((double)start.Value, (double)loop.Value, (double)end.Value, (double)gain.Value, (double)fadeIn.Value, (double)fadeOut.Value, (double)crossfade.Value, skipIntro.Checked);
     private bool ReviewDetails(bool exporting)
     {
         if (source == null || operation != null) return false; Stop();
@@ -196,7 +233,7 @@ internal sealed class MusicEditorForm : Form
     }
     private void MarkDirty()
     {
-        if (source == null || updating) return; dirty = true; projectLabel.Text = (savedProject == null ? "Unsaved project" : Path.GetFileName(savedProject.Path)) + " *";
+        if (source == null || updating) return; dirty = true; projectLabel.Text = (collectionMode ? "Song in mod project" : savedProject == null ? "Unsaved project" : Path.GetFileName(savedProject.Path)) + " *";
         draftTimer.Stop(); draftTimer.Start();
     }
     private void SaveDraft()
@@ -256,24 +293,25 @@ internal sealed class MusicEditorForm : Form
             source = result.audio; sourceName = loaded.Project.Source.Name.Length == 0 ? Path.GetFileName(source.Path) : loaded.Project.Source.Name; projectId = loaded.Project.Id; exportDetails = loaded.Project.Export; generated = null; output.Text = ""; updating = true;
             var e = loaded.Project.Edits;
             foreach (var n in new[] { start, loop, end, fadeIn, fadeOut, crossfade }) n.Maximum = Math.Max((decimal)source.Audio.Source.Seconds, (decimal)new[] { e.Start, e.LoopStart, e.End, e.FadeIn, e.FadeOut, e.Crossfade }.Max());
-            start.Value = (decimal)e.Start; loop.Value = (decimal)e.LoopStart; end.Value = (decimal)e.End; gain.Value = (decimal)e.GainDb; fadeIn.Value = (decimal)e.FadeIn; fadeOut.Value = (decimal)e.FadeOut; crossfade.Value = (decimal)e.Crossfade;
+            start.Value = (decimal)e.Start; loop.Value = (decimal)e.LoopStart; end.Value = (decimal)e.End; gain.Value = (decimal)e.GainDb; fadeIn.Value = (decimal)e.FadeIn; fadeOut.Value = (decimal)e.FadeOut; crossfade.Value = (decimal)e.Crossfade; skipIntro.Checked = e.SkipIntro;
             copySource.Checked = loaded.Project.CopySourceOnSave; zoom.Value = 1; scroll.Value = 0; updating = false;
             wave.Peaks = result.peaks; wave.Duration = source.Audio.Source.Seconds; wave.Position = e.Start;
             sourceInfo.Text = $"{sourceName} · {source.Audio.Source.Seconds:N3} s · {source.Audio.Source.Rate:N0} Hz · {source.Audio.Source.Channels} channel(s)\n{source.Path}";
             sourceDisc.SetClip("Side A · " + Path.GetFileNameWithoutExtension(sourceName));
             bool recovery = Path.GetDirectoryName(loaded.Path)!.Equals(Path.GetFullPath(DraftFolder), StringComparison.OrdinalIgnoreCase) && Guid.TryParseExact(Path.GetFileNameWithoutExtension(loaded.Path), "N", out _);
-            if (recovery) { draftPath = loaded.Path; draftHash = loaded.Hash; } else savedProject = loaded;
+            if (recovery) { draftPath = loaded.Path; draftHash = loaded.Hash; } else if (!collectionMode) savedProject = loaded;
             View(); Changed();
             dirty = recovery || changed || !path.Equals(ProjectFiles.SourcePath(loaded), StringComparison.OrdinalIgnoreCase) || !ProjectFiles.TargetMatches(loaded.Project, target, target.ArchiveFolder);
-            if (!dirty) { draftTimer.Stop(); projectLabel.Text = Path.GetFileName(loaded.Path); }
+            if (!dirty) { draftTimer.Stop(); projectLabel.Text = collectionMode ? "Song in mod project" : Path.GetFileName(loaded.Path); }
             status.Text = changed ? "Changed source accepted. Review all saved cuts and processing, then regenerate." : recovery ? "Recovery draft restored. Save a project to keep this work." : "Project opened. Regenerate converted audio before review or export.";
             metrics.Text = "Saved cuts and processing restored. Previous generated audio is not reused.";
         });
     }
     private void Changed()
     {
-        if (updating) return; Stop(); generated = null; output.Text = ""; wave.Start = (double)start.Value; wave.Loop = (double)loop.Value; wave.End = (double)end.Value; wave.Invalidate();
+        if (updating) return; Stop(); generated = null; output.Text = ""; wave.IntroMarkersEnabled = !skipIntro.Checked; wave.Start = skipIntro.Checked ? 0 : (double)start.Value; wave.Loop = skipIntro.Checked ? 0 : (double)loop.Value; wave.End = (double)end.Value; wave.Invalidate();
         metrics.Text = "Edits changed. Generate again to verify converted output. Fades and crossfade are baked into the audio."; status.Text = "Edits changed. Converted preview requires regeneration."; MarkDirty(); Ready();
+        if (skipIntro.Checked) metrics.Text += "\nFull-song mode starts at source 0 and repeats to the crop end. A minimal silent intro is generated; verify initial playback in-game.";
     }
     private void View() { wave.Zoom = (double)zoom.Value; wave.Offset = (wave.Duration - wave.Duration / wave.Zoom) * scroll.Value / 1000; wave.Invalidate(); }
     private void Report(EditedPair pair, bool verified)
@@ -297,6 +335,8 @@ internal sealed class MusicEditorForm : Form
         saveProject.Enabled = saveAs.Enabled = copySource.Enabled = idle && source != null;
         exportMenu.Enabled = editModDetails.Enabled = idle && source != null; exportNative.Enabled = exportPackage.Enabled = idle && generated != null;
         installation.Enabled = idle;
+        skipIntro.Enabled = useInMod.Enabled = idle && source != null; start.Enabled = loop.Enabled = idle && source != null && !skipIntro.Checked;
+        wave.Enabled = idle;
     }
     private void Play(Audition audio, bool isSource = false, double seconds = 0, string edition = "Original target")
     {
@@ -355,6 +395,8 @@ internal sealed class EditorScroll : Control
     }
 }
 
+internal enum WaveMarker { Intro, Loop, End }
+
 internal sealed class EditorWaveform : Control
 {
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -371,15 +413,61 @@ internal sealed class EditorWaveform : Control
     public double Loop { get; set; }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public double End { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool IntroMarkersEnabled { get; set; } = true;
+    private WaveMarker? dragging, hovering;
+    private double dragOriginal;
     private double position;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public double Position { get => position; set { if (position == value) return; position = value; Invalidate(); } }
     public event Action<double>? Clicked;
+    public event Action<WaveMarker, double>? MarkerMoved;
     public EditorWaveform() { DoubleBuffered = true; SetStyle(ControlStyles.Opaque | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true); AccessibleName = "Replacement source waveform"; }
-    protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (Enabled && Duration > 0) Clicked?.Invoke(Math.Clamp(Offset + (e.X / (double)Math.Max(1, Width - 1)) * Duration / Zoom, 0, Duration)); }
+    private float MarkerX(double seconds) => (float)((seconds - Offset) / (Duration / Zoom) * Math.Max(1, Width - 1));
+    private double MarkerTime(WaveMarker marker) => marker == WaveMarker.Intro ? Start : marker == WaveMarker.Loop ? Loop : End;
+    private WaveMarker? HitMarker(int x)
+    {
+        if (!Enabled || Duration <= 0 || Peaks.Length == 0) return null;
+        WaveMarker? nearest = null; float distance = 9;
+        foreach (var marker in IntroMarkersEnabled ? new[] { WaveMarker.Intro, WaveMarker.Loop, WaveMarker.End } : new[] { WaveMarker.End })
+        { float px = MarkerX(MarkerTime(marker)); if (px < 0 || px > Width - 1) continue; float delta = Math.Abs(x - px); if (delta <= distance) { distance = delta; nearest = marker; } }
+        return nearest;
+    }
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e); if (!Enabled || Duration <= 0 || e.Button != MouseButtons.Left) return; Focus();
+        dragging = HitMarker(e.X);
+        if (dragging is { } marker) { dragOriginal = MarkerTime(marker); Capture = true; Cursor = Cursors.SizeWE; Invalidate(); }
+        else Clicked?.Invoke(Math.Clamp(Offset + Math.Clamp(e.X, 0, Math.Max(1, Width - 1)) / (double)Math.Max(1, Width - 1) * Duration / Zoom, 0, Duration));
+    }
+    private void MoveMarker(int x)
+    {
+        if (dragging is not { } marker) return;
+        double seconds = Math.Clamp(Offset + Math.Clamp(x, 0, Math.Max(1, Width - 1)) / (double)Math.Max(1, Width - 1) * Duration / Zoom, 0, Duration);
+        double minimum = marker == WaveMarker.Intro ? 0 : marker == WaveMarker.Loop ? Start + .01 : IntroMarkersEnabled ? Loop + .01 : .01;
+        double maximum = marker == WaveMarker.Intro ? Loop - .01 : marker == WaveMarker.Loop ? End - .01 : Duration;
+        minimum = Math.Max(0, minimum); maximum = Math.Min(Duration, maximum);
+        if (maximum < minimum) return;
+        MarkerMoved?.Invoke(marker, Math.Clamp(Math.Round(seconds, 3), minimum, maximum)); Invalidate();
+    }
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e); if (dragging != null) { MoveMarker(e.X); return; }
+        var next = HitMarker(e.X); Cursor = next != null ? Cursors.SizeWE : Cursors.Default;
+        if (next != hovering) { hovering = next; Invalidate(); }
+    }
+    protected override void OnMouseUp(MouseEventArgs e)
+    { base.OnMouseUp(e); if (e.Button != MouseButtons.Left || dragging == null) return; MoveMarker(e.X); dragging = null; Capture = false; hovering = HitMarker(e.X); Invalidate(); }
+    protected override void OnMouseCaptureChanged(EventArgs e)
+    { base.OnMouseCaptureChanged(e); if (!Capture) { dragging = null; Cursor = Cursors.Default; Invalidate(); } }
+    protected override void OnMouseLeave(EventArgs e)
+    { base.OnMouseLeave(e); if (dragging == null) { hovering = null; Cursor = Cursors.Default; Invalidate(); } }
+    protected override bool IsInputKey(Keys keyData) => dragging != null && (keyData & Keys.KeyCode) == Keys.Escape || base.IsInputKey(keyData);
+    protected override void OnKeyDown(KeyEventArgs e)
+    { if (e.KeyCode == Keys.Escape && dragging is { } marker) { dragging = null; Capture = false; MarkerMoved?.Invoke(marker, dragOriginal); e.Handled = e.SuppressKeyPress = true; Invalidate(); return; } base.OnKeyDown(e); }
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(DecoTheme.Field); if (Duration <= 0 || Peaks.Length == 0) { TextRenderer.DrawText(e.Graphics, "IMPORT AUDIO TO CUT YOUR RECORD", Font, ClientRectangle, DecoTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter); return; }
+        e.Graphics.Clear(DecoTheme.Field); if (Duration <= 0 || Peaks.Length == 0) { TextRenderer.DrawText(e.Graphics, "DROP A SONG HERE OR CHOOSE IMPORT AUDIO", Font, ClientRectangle, DecoTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter); return; }
         float X(double seconds) => (float)((seconds - Offset) / (Duration / Zoom) * (Width - 1));
         using var intro = new SolidBrush(Color.FromArgb(56, 41, 33)); using var loop = new SolidBrush(Color.FromArgb(68, 27, 42));
         float a = Math.Clamp(X(Start), 0, Width), b = Math.Clamp(X(Loop), 0, Width), c = Math.Clamp(X(End), 0, Width);
@@ -391,8 +479,16 @@ internal sealed class EditorWaveform : Control
             int last = Math.Clamp((int)((Offset + (x + 1d) / Width * Duration / Zoom) / Duration * Peaks.Length), first + 1, Peaks.Length); float peak = 0;
             for (int i = first; i < last; i++) peak = Math.Max(peak, Peaks[i]); float height = peak * Math.Max(1, Height / 2 - 32); e.Graphics.DrawLine(pen, x, Height / 2 - height, x, Height / 2 + height);
         }
-        foreach (var (time, text) in new[] { (Start, "INTRO"), (Loop, "LOOP"), (End, "END") })
-        { float x = X(time); if (x < 0 || x >= Width) continue; using var marker = new Pen(DecoTheme.Ivory); e.Graphics.DrawLine(marker, x, 0, x, Height); TextRenderer.DrawText(e.Graphics, text, Font, new Point(Math.Clamp((int)x + 3, 0, Math.Max(0, Width - 55)), 4), DecoTheme.Ivory); }
+        var markers = IntroMarkersEnabled ? new[] { (WaveMarker.Intro, Start, "INTRO"), (WaveMarker.Loop, Loop, "LOOP"), (WaveMarker.End, End, "CROP END") } : new[] { (WaveMarker.Loop, 0d, "FULL SONG"), (WaveMarker.End, End, "CROP END") };
+        foreach (var (kind, time, label) in markers)
+        {
+            float x = X(time); if (x < 0 || x >= Width) continue; bool movable = IntroMarkersEnabled || kind == WaveMarker.End;
+            Color color = movable && (dragging == kind || hovering == kind) ? DecoTheme.Gold : DecoTheme.Ivory;
+            using var marker = new Pen(color, dragging == kind ? 3 : 1); e.Graphics.DrawLine(marker, x, 0, x, Height);
+            if (movable) { using var handle = new SolidBrush(color); e.Graphics.FillPolygon(handle, new[] { new PointF(x - 5, 20), new PointF(x + 5, 20), new PointF(x, 28) }); }
+            string text = dragging == kind ? $"{label} {time:N3} s" : label;
+            TextRenderer.DrawText(e.Graphics, text, Font, new Point(Math.Clamp((int)x + 3, 0, Math.Max(0, Width - TextRenderer.MeasureText(text, Font).Width - 4)), 4), color);
+        }
         using var cursor = new Pen(Color.Coral, 2); float px = X(Position); if (px >= 0 && px < Width) e.Graphics.DrawLine(cursor, px, 22, px, Height - 23);
         TextRenderer.DrawText(e.Graphics, $"{Offset:N3} s — {Math.Min(Duration, Offset + Duration / Zoom):N3} s", Font, new Point(6, Height - 24), DecoTheme.Muted);
     }

@@ -14,7 +14,7 @@ internal sealed class InstallationDialog : Form
     private CancellationTokenSource? operation;
     private bool stateReadable;
     public bool GameFilesChanged { get; private set; }
-    public InstallationDialog(string game, MusicTarget? target = null, GeneratedPair? pair = null, AudioSource? source = null, EditSettings? edits = null)
+    public InstallationDialog(string game, MusicTarget? target = null, GeneratedPair? pair = null, AudioSource? source = null, EditSettings? edits = null, Func<MusicInstallation, CancellationToken, InstallationRecord>? prepareBatch = null)
     {
         this.game = game; Text = "Skullgirls Audio Workshop — Apply / Restore"; ClientSize = new(930, 640); MinimumSize = new(850, 580); StartPosition = FormStartPosition.CenterParent;
         BackColor = DecoTheme.Ink; ForeColor = DecoTheme.Ivory; Font = new("Segoe UI", 10); DoubleBuffered = true; DecoTheme.StyleTitleBar(this);
@@ -25,7 +25,7 @@ internal sealed class InstallationDialog : Form
         root.Controls.Add(review, 0, 2); root.Controls.Add(Row(prepare, applyPrepared, restore, recover), 0, 3); root.Controls.Add(Row(cancel, launch), 0, 4); root.Controls.Add(status, 0, 5);
         void Ready()
         {
-            bool idle = operation == null; prepare.Enabled = idle && stateReadable && current == null && target != null && pair != null && source != null && edits != null;
+            bool idle = operation == null; prepare.Enabled = idle && stateReadable && current == null && (prepareBatch != null || target != null && pair != null && source != null && edits != null);
             restore.Enabled = idle && stateReadable && current?.State == InstallState.Applied; recover.Enabled = idle && stateReadable && current != null && current.State != InstallState.Applied; cancel.Enabled = !idle; launch.Enabled = idle && stateReadable && (current == null || current.State == InstallState.Applied);
             applyPrepared.Enabled = idle && stateReadable && current?.State == InstallState.Prepared;
         }
@@ -37,6 +37,8 @@ internal sealed class InstallationDialog : Form
                 review.Text = current == null ? $"Installation: {game}\r\nActive folder: {GameLibrary.ActiveArchiveFolder(game)} (loader detection rule)\r\n\r\nNo active Workshop transaction.\r\nGenerate and verify a music replacement, then Prepare Apply in the music editor.\r\nHistorical backups are retained separately from generated audio."
                     : $"State: {current.State}\r\nTrack: {current.Track}\r\nArchive: {MusicInstallation.ArchivePath(current)}\r\nAssets:\r\n  {string.Join("\r\n  ", current.Assets)}\r\n\r\nPre-apply SHA-256:\r\n{current.OriginalHash}\r\nInstalled SHA-256:\r\n{current.InstalledHash ?? "not staged yet"}\r\n\r\nBackup:\r\n{engine.BackupPath(current)}\r\n\r\nA verified preparation can be reviewed and applied, or recovered without installing. Interrupted commits must be recovered. Restore returns the verified pre-apply archive and refuses unrelated external changes.";
                 if (current?.Edits is { } settings) review.Text += $"\r\n\r\nPrepared edits: intro {settings.Start:N3} → {settings.LoopStart:N3} s; loop {settings.LoopStart:N3} → {settings.End:N3} s; gain {settings.GainDb:N1} dB; fades {settings.FadeIn:N3}/{settings.FadeOut:N3} s; crossfade {settings.Crossfade:N3} s.";
+                if (current?.Edits?.SkipIntro == true) review.Text += $"\r\nFull-song mode overrides intro cuts: source 0 → {current.Edits.End:N3} s repeats after a minimal silent lead-in. Verify initial playback in-game.";
+                if (current?.Songs is { } songs) foreach (var song in songs) review.Text += $"\r\n\r\n{song.Name}: crop end {song.Edits.End:N3} s; gain {song.Edits.GainDb:N1} dB; skip intro {song.Edits.SkipIntro}.\r\nSource SHA-256: {song.SourceHash}";
             }
             catch (Exception ex) { stateReadable = false; review.Text = ex.Message; }
             Ready();
@@ -52,12 +54,13 @@ internal sealed class InstallationDialog : Form
         async Task ReviewApply()
         {
             if (current?.State != InstallState.Prepared) return;
-            var decision = MessageBox.Show(this, $"Apply {current.Track}?\nPrepared gain: {current.Edits?.GainDb:N1} dB\n\n{MusicInstallation.ArchivePath(current)}\n\nOnly these assets change:\n{string.Join("\n", current.Assets)}\n\nVerified pre-apply backup:\n{engine.BackupPath(current)}\n\nIn-game playback is not yet verified. No recovers the prepared transaction without installing.", "Review prepared music replacement", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
+            string processing = current.Songs == null ? $"Prepared gain: {current.Edits?.GainDb:N1} dB; skip intro: {current.Edits?.SkipIntro}" : $"{current.Songs.Length} songs, each with its own cuts and processing. One archive and one Restore operation.";
+            var decision = MessageBox.Show(this, $"Apply {current.Track}?\n{processing}\n\n{MusicInstallation.ArchivePath(current)}\n\nOnly these assets change:\n{string.Join("\n", current.Assets)}\n\nVerified pre-apply backup:\n{engine.BackupPath(current)}\n\nIn-game playback is not yet verified. No recovers the prepared transaction without installing.", "Review prepared music replacement", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             var id = current.Id;
             if (decision == DialogResult.Yes) await Run("Applying staged archive and verifying the installed result…", _ => engine.Apply(game, id), false);
             else await Run("Discarding preparation; retaining its backup…", _ => engine.Recover(game, id), false);
         }
-        prepare.Click += async (_, _) => { if (target == null || pair == null || source == null || edits == null) return; await Run("Creating and verifying the pre-apply backup and complete staged archive…", t => engine.Prepare(target, pair, source, edits, t), true); await ReviewApply(); };
+        prepare.Click += async (_, _) => { if (prepareBatch == null && (target == null || pair == null || source == null || edits == null)) return; await Run("Creating and verifying the pre-apply backup and complete staged archive…", t => prepareBatch != null ? prepareBatch(engine, t) : engine.Prepare(target!, pair!, source!, edits!, t), true); await ReviewApply(); };
         applyPrepared.Click += async (_, _) => await ReviewApply();
         restore.Click += async (_, _) => { if (current == null) return; var id = current.Id; await Run("Restoring the verified pre-apply archive…", _ => engine.Restore(game, id), false); };
         recover.Click += async (_, _) => { if (current == null) return; var id = current.Id; await Run("Recovering the interrupted transaction to its pre-apply state…", _ => engine.Recover(game, id), false); };

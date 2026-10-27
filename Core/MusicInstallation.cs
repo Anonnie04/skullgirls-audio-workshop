@@ -6,7 +6,8 @@ using System.Text.Json;
 namespace SkullgirlsAudio;
 
 public enum InstallState { Preparing, Prepared, Committing, Applied, Restoring, Restored, Aborted, Conflict }
-public record InstallationRecord(int Schema, Guid Id, string GameFolder, string ArchiveFolder, string Track, string[] Assets, string OriginalHash, string? InstalledHash, InstallState State, DateTimeOffset Updated, string? GameExecutableHash = null, string? SourceHash = null, EditSettings? Edits = null);
+public record InstallationSong(string Name, string SourceHash, EditSettings Edits, string[] Assets);
+public record InstallationRecord(int Schema, Guid Id, string GameFolder, string ArchiveFolder, string Track, string[] Assets, string OriginalHash, string? InstalledHash, InstallState State, DateTimeOffset Updated, string? GameExecutableHash = null, string? SourceHash = null, EditSettings? Edits = null, InstallationSong[]? Songs = null);
 
 // One active music transaction per installation. Backups are never treated as conversion cache.
 public sealed class MusicInstallation
@@ -48,7 +49,7 @@ public sealed class MusicInstallation
         NoLinks(path); if (new FileInfo(path).Length > 1024 * 1024) throw new InvalidDataException("Installation journal is too large.");
         var r = JsonSerializer.Deserialize<InstallationRecord>(File.ReadAllBytes(path), Json) ?? throw new InvalidDataException("Installation journal is empty.");
         if (r.Schema != 1 || r.Id == Guid.Empty || !Enum.IsDefined(r.State) || r.ArchiveFolder != archiveFolder || !Canonical(r.GameFolder).Equals(Canonical(game), StringComparison.OrdinalIgnoreCase)
-            || Path.GetFileName(Path.GetDirectoryName(path)) != r.Id.ToString("N") || !Digest(r.OriginalHash) || (r.InstalledHash != null && !Digest(r.InstalledHash)) || r.Assets?.Length != 2 || r.Track == null)
+            || Path.GetFileName(Path.GetDirectoryName(path)) != r.Id.ToString("N") || !Digest(r.OriginalHash) || (r.InstalledHash != null && !Digest(r.InstalledHash)) || r.Assets == null || r.Assets.Length < 2 || r.Assets.Length > 48 || r.Assets.Length % 2 != 0 || r.Assets.Distinct(StringComparer.OrdinalIgnoreCase).Count() != r.Assets.Length || r.Track == null)
             throw new InvalidDataException("Installation journal needs manual review. No game files changed.");
         return r;
     }
@@ -100,7 +101,20 @@ public sealed class MusicInstallation
         if (Current(target.GameFolder) != null) throw new IOException("Restore or recover the existing Workshop transaction before another Apply.");
         var data = MusicExport.Verify(pair, source, target, edits, cancel);
         var r = new InstallationRecord(1, Guid.NewGuid(), Canonical(target.GameFolder), target.ArchiveFolder, target.Track.Name, target.Track.Assets.ToArray(), Hash(Path.Combine(target.GameFolder, target.ArchiveFolder, "music-win.gfs")), null, InstallState.Preparing, DateTimeOffset.UtcNow, Hash(Path.Combine(target.GameFolder, "SkullGirls.exe")), source.Hash, edits);
-        Active(r); long size = new FileInfo(ArchivePath(r)).Length; long estimate = size + data.Sum(b => (long)b.Length);
+        var replacements = target.Track.Assets.Select((asset, i) => (asset, i)).ToDictionary(p => p.asset, p => data[p.i]);
+        return PrepareArchive(r, replacements, () => { target.AssertUnchanged(); source.AssertUnchanged(); }, cancel);
+    }
+    public InstallationRecord PrepareCollection(ModProject project, IReadOnlyList<PreparedSong> songs, GameLibrary library, CancellationToken cancel = default)
+    {
+        using var operation = Lock(library.Folder); GameClosed();
+        if (Current(library.Folder) != null) throw new IOException("Restore or recover the existing Workshop transaction before another Apply.");
+        var replacements = ModProjects.Verify(project, songs, library, cancel);
+        var r = new InstallationRecord(1, Guid.NewGuid(), Canonical(library.Folder), library.ArchiveFolder, project.Details.Name + $" ({songs.Count} songs)", replacements.Keys.ToArray(), Hash(library.Music.FilePath), null, InstallState.Preparing, DateTimeOffset.UtcNow, Hash(Path.Combine(library.Folder, "SkullGirls.exe")), Songs: songs.Select(s => new InstallationSong(s.Project.Target.Name, s.Project.Source.Hash, s.Project.Edits, s.Project.Target.Assets)).ToArray());
+        return PrepareArchive(r, replacements, () => ModProjects.AssertInputs(project, library), cancel);
+    }
+    private InstallationRecord PrepareArchive(InstallationRecord r, Dictionary<string, byte[]> replacements, Action assertInputs, CancellationToken cancel)
+    {
+        Active(r); long size = new FileInfo(ArchivePath(r)).Length; long estimate = size + replacements.Values.Sum(b => (long)b.Length);
         bool sameDrive = Path.GetPathRoot(store)!.Equals(Path.GetPathRoot(r.GameFolder), StringComparison.OrdinalIgnoreCase);
         Space(r.GameFolder, sameDrive ? checked(size + estimate) : estimate); Space(store, sameDrive ? checked(size + estimate) : size);
         r = Save(r, InstallState.Preparing); Checkpoint?.Invoke("Preparing");
@@ -108,9 +122,8 @@ public sealed class MusicInstallation
         {
             CopyFile(ArchivePath(r), BackupPath(r), cancel);
             if (Hash(BackupPath(r)) != r.OriginalHash) throw new IOException("Pre-apply backup verification failed."); Checkpoint?.Invoke("BackupVerified");
-            var replacements = target.Track.Assets.Select((asset, i) => (asset, i)).ToDictionary(p => p.asset, p => data[p.i]);
             MusicRepack.Build(BackupPath(r), Stage(r), replacements, cancel); MusicRepack.Verify(BackupPath(r), Stage(r), replacements, cancel);
-            r = r with { InstalledHash = Hash(Stage(r)) }; target.AssertUnchanged(); source.AssertUnchanged();
+            r = r with { InstalledHash = Hash(Stage(r)) }; assertInputs();
             if (Hash(ArchivePath(r)) != r.OriginalHash) throw new IOException("Music archive changed during preparation.");
             r = Save(r, InstallState.Prepared); Checkpoint?.Invoke("Prepared"); return r;
         }

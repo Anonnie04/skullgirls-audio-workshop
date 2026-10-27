@@ -8,3 +8,7 @@ artifacts/
 vendor/ffmpeg/*
 !vendor/ffmpeg/README.md
 *.user
+*.sgawproj
+*.sgawmod
+*.sgawproj.sources/
+*.sgawmod.sources/

@@ -57,14 +57,14 @@ public sealed class MusicTarget
     }
 }
 
-public record EditSettings(double Start, double LoopStart, double End, double GainDb = 0, double FadeIn = 0, double FadeOut = 0, double Crossfade = 0)
+public record EditSettings(double Start, double LoopStart, double End, double GainDb = 0, double FadeIn = 0, double FadeOut = 0, double Crossfade = 0, bool SkipIntro = false)
 {
     public void Validate(AudioSource source)
     {
         if (new[] { Start, LoopStart, End, GainDb, FadeIn, FadeOut, Crossfade }.Any(v => !double.IsFinite(v))) throw new ArgumentException("Edit values must be finite.");
-        if (Start < 0 || LoopStart - Start < .01 || End - LoopStart < .01 || End > source.Audio.Source.Seconds + .0000001)
+        if (Start < 0 || LoopStart < 0 || (!SkipIntro && (LoopStart - Start < .01 - 1e-9 || End - LoopStart < .01 - 1e-9)) || End < .01 || End > source.Audio.Source.Seconds + .0000001)
             throw new ArgumentException("Select at least 10 ms for both intro and loop, within the source duration.");
-        if (GainDb < -60 || GainDb > 24 || FadeIn < 0 || FadeIn > LoopStart - Start || FadeOut < 0 || FadeOut > End - LoopStart || Crossfade < 0 || Crossfade * 2 >= End - LoopStart)
+        if (GainDb < -60 || GainDb > 24 || FadeIn < 0 || FadeIn > (SkipIntro ? End : LoopStart - Start) || FadeOut < 0 || FadeOut > End - (SkipIntro ? 0 : LoopStart) || Crossfade < 0 || Crossfade * 2 >= End - (SkipIntro ? 0 : LoopStart))
             throw new ArgumentException("Gain must be -60 to +24 dB. Fades must fit their segment; loop crossfade must be shorter than half the loop.");
     }
 }
@@ -122,8 +122,10 @@ public static class MusicEditing
     public static EditedPair Render(AudioSource source, MusicTarget target, EditSettings edits, CancellationToken cancel = default)
     {
         edits.Validate(source);
-        return new(RenderSegment(source.Audio, target.Formats[0], edits.Start, edits.LoopStart, edits.GainDb, edits.FadeIn, 0, 0, cancel),
-            RenderSegment(source.Audio, target.Formats[1], edits.LoopStart, edits.End, edits.GainDb, 0, edits.FadeOut, edits.Crossfade, cancel));
+        var intro = target.Formats[0];
+        return new(edits.SkipIntro ? new(new byte[intro.SamplesPerBlock * intro.Channels * 2], intro.Rate, intro.Channels, intro.SamplesPerBlock, 0, 0, intro.SamplesPerBlock / (double)intro.Rate, 0)
+                : RenderSegment(source.Audio, intro, edits.Start, edits.LoopStart, edits.GainDb, edits.FadeIn, 0, 0, cancel),
+            RenderSegment(source.Audio, target.Formats[1], edits.SkipIntro ? 0 : edits.LoopStart, edits.End, edits.GainDb, edits.SkipIntro ? edits.FadeIn : 0, edits.FadeOut, edits.Crossfade, cancel));
     }
     private static RenderedSegment RenderSegment(Decoded source, Wave target, double start, double end, double db, double fadeIn, double fadeOut, double crossfade, CancellationToken cancel)
     {
@@ -217,7 +219,7 @@ public static class MusicGeneration
             File.WriteAllText(Path.Combine(folder, "validation.json"), JsonSerializer.Serialize(new { schema = 1, source = source.Path, sourceHash = source.Hash, target = target.Track.Name, archive = target.Track.Archive, paths = target.Track.Assets, originalHashes = target.Hashes, edits,
                 intro = new { rendered.Intro.Frames, rendered.Intro.Rate, rendered.Intro.TimingAdjustmentMs, rendered.Intro.ClippedSamples, rendered.Intro.PeakBeforeClip },
                 loop = new { rendered.Loop.Frames, rendered.Loop.Rate, rendered.Loop.TimingAdjustmentMs, rendered.Loop.CrossfadeFrames, rendered.Loop.ClippedSamples, rendered.Loop.PeakBeforeClip },
-                hashes, independentDecodePassed = true, inGameVerified = false, alignmentPolicy = "Nearest complete native block by resampling; no appended silence. smpl end updated to final frame." }, new JsonSerializerOptions { WriteIndented = true }));
+                hashes, independentDecodePassed = true, inGameVerified = false, alignmentPolicy = edits.SkipIntro ? "One silent native intro block; full-source loop resampled to the nearest complete block; smpl end updated." : "Nearest complete native block by resampling; no appended silence. smpl end updated to final frame." }, new JsonSerializerOptions { WriteIndented = true }));
             return new(folder, files, hashes, MusicEditing.Join(decoded[0].Pcm, decoded[0].Source.Rate, decoded[1].Pcm, decoded[1].Source.Rate, 2, cancel), rendered, edits, source.Hash, target.Hashes.ToArray(), target.Track.Assets.ToArray(), target.Track.Archive);
         }
         catch

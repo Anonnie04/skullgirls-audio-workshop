@@ -3,6 +3,7 @@ using System.Text.Json;
 using SkullgirlsAudio;
 
 if (args.Length == 2 && args[0] == "--release") { ReleaseChecks.Run(args[1]); return; }
+if (args.Length == 3 && args[0] == "--collections") { CollectionChecks.Run(args[1], args[2]); return; }
 if (args.Length == 3 && args[0] == "--imports") { ImportChecks.Run(args[1], args[2]); return; }
 if (args.Length == 3 && args[0] == "--installation") { InstallationChecks.Run(args[1], args[2]); return; }
 if (args.Length == 3 && args[0] == "--exports") { ExportChecks.Run(args[1], args[2]); return; }

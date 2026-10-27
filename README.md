@@ -3,11 +3,11 @@
 A Windows music replacement editor for Skullgirls, with an Art Deco record-player interface.
 Browse game audio, prepare an intro and loop, hear the converted result, then export a mod or apply it with a verified backup.
 
-**Version 0.9.0.** The downloaded Windows package has been confirmed working by the user. Local menu replacement and two loop boundaries have been confirmed in-game; broader game-build coverage remains ongoing.
+**Version 0.10.0** adds multi-song mod projects, combined export/Apply, crop-end/full-song controls, source-file drag and drop, and draggable waveform markers. See [the mod project guide](docs/MOD-PROJECTS.md).
 
 ## Download and run
 
-1. Get **SkullgirlsAudioWorkshop-0.9.0-win-x64.zip** from [Releases](https://github.com/Anonnie04/skullgirls-audio-workshop/releases).
+1. Get **SkullgirlsAudioWorkshop-0.10.0-win-x64.zip** from [Releases](https://github.com/Anonnie04/skullgirls-audio-workshop/releases).
 2. Extract the entire ZIP into a writable folder outside the game, such as Documents. Do not run it inside the ZIP.
 3. Run **SkullgirlsAudioWorkshop.exe**.
 
@@ -18,7 +18,7 @@ You need your own supported PC game installation. Game audio, game archives and 
 ## Make a music replacement
 
 1. Select a verified music target, then **Replace music…**.
-2. On blue **Side A**, choose **Import audio…** and open your source.
+2. On blue **Side A**, choose **Import audio…** or drop one supported source audio file onto the deck or waveform.
 3. Use **Edit source…** to set intro start, loop start and loop end. Adjust gain, fades or loop crossfade as needed.
 4. Preview the edits. Choose **Generate & verify**, then **Play converted** on Side B.
 5. Save an editable **.sgawproj** project. Source copying is on by default and preserves the original file format.
@@ -39,7 +39,7 @@ Limits: 128 MB input and 32 million decoded samples (about six minutes at stereo
 
 Apply backs up the actual current archive, including any preexisting mods; it does not claim that the backup is an untouched Steam original. Unrelated entries are verified unchanged. Restore refuses unexplained external archive changes. Keep the game closed while preparing, applying, restoring or recovering.
 
-Keep **installation-backups**, **drafts**, personal labels and your project/source folders when updating. Close Workshop before replacing its application files. Extract updates over the application folder while retaining these user-data folders, or keep the old folder until all its installations have been restored. Do not delete a folder containing needed restore data.
+Keep **installation-backups**, **drafts**, **mod-drafts**, personal labels and your project/source folders when updating. Close Workshop before replacing its application files. Extract updates over the application folder while retaining these user-data folders, or keep the old folder until all its installations have been restored. Do not delete a folder containing needed restore data.
 
 ## Documentation
 
@@ -47,7 +47,8 @@ Keep **installation-backups**, **drafts**, personal labels and your project/sour
 - [Compatibility and known limits](docs/COMPATIBILITY.md)
 - [Build and corresponding source](docs/BUILD.md)
 - [Validation record](docs/VALIDATION.md)
-- [0.9.0 release notes](docs/RELEASE-NOTES.md)
+- [Mod projects and loop controls](docs/MOD-PROJECTS.md)
+- [0.10.0 release notes](docs/RELEASE-NOTES.md)
 - [Proposal and remaining work](STATUS.md)
 
 ## License and credits

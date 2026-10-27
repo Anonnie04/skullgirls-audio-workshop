@@ -10,6 +10,8 @@ Play, pause, seek and loop the selected clip. Library repeat ranges affect audit
 
 Side A is your source; Side B is the game target and converted replacement. Import audio leaves the original file unchanged. The source editor provides waveform zoom/scroll, numerical boundaries and intro-to-loop/seam audition. Its accepted cuts return to the main editor. Gain, fades and optional crossfade are baked into generated audio; crossfade shortens the loop by its overlap.
 
+In version 0.10.0, you can also drag one supported song file onto Side A or the waveform. This uses the same importer as Import audio; folders, multiple-file drops and drops while busy are rejected.
+
 Preview edits checks processing before conversion. Generate & verify creates native ADPCM files, verifies their structure and independently decodes them. Play converted auditions those actual generated files. Changed edits invalidate the previous conversion. Codec blocks can shift requested durations slightly; the review displays that adjustment and clipping measurements.
 
 ## Projects

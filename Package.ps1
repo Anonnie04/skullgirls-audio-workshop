@@ -1,6 +1,8 @@
 param([Parameter(Mandatory=$true)][string]$PublishDirectory)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+$sourceChanges = @(git status --porcelain)
+if ($LASTEXITCODE -ne 0 -or $sourceChanges.Count -gt 0) { throw 'Commit intended source changes before packaging; the application source ZIP must match the release commit.' }
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $version = ([xml](Get-Content App/App.csproj -Raw)).Project.PropertyGroup.Version
 foreach ($required in @('SkullgirlsAudioWorkshop.exe','coreclr.dll','System.Windows.Forms.dll','LICENSE','THIRD-PARTY-NOTICES.md','tools/ffmpeg/ffmpeg.exe','tools/ffmpeg/SOURCE.txt','tools/ffmpeg/COPYING.LGPLv2.1')) {
@@ -10,7 +12,7 @@ if ((Get-Content (Join-Path $publish 'tools/ffmpeg/SOURCE.txt') -Raw) -notmatch 
 $files = @(Get-ChildItem -LiteralPath $publish -File -Recurse)
 foreach ($file in $files) {
     $relative = [IO.Path]::GetRelativePath($publish,$file.FullName).Replace('\','/')
-    if ($relative -match '(^|/)(installation-backups|drafts|generated|labels|Mods|Data)(/|$)' -or $relative -match '\.(gfs|wav|sgawproj|pdb)$') { throw "Private or unexpected content in publish directory: $relative" }
+    if ($relative -match '(^|/)(installation-backups|drafts|mod-drafts|generated|labels|Mods|Data)(/|$)' -or $relative -match '\.(gfs|wav|sgawproj|sgawmod|pdb)$') { throw "Private or unexpected content in publish directory: $relative" }
 }
 New-Item -ItemType Directory -Path artifacts -Force | Out-Null
 $binary = Join-Path $PSScriptRoot "artifacts/SkullgirlsAudioWorkshop-$version-win-x64.zip"

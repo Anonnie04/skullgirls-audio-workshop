@@ -21,12 +21,13 @@ static class ReleaseChecks
             byte[] block = new byte[140]; block[2] = block[4] = 16; w.Write("data"u8); w.Write(block.Length); w.Write(block);
             w.Flush(); s.Position = 4; w.Write((int)s.Length - 8); template = s.ToArray();
         }
-        WriteGfs(Path.Combine(game, "data01", "music-win.gfs"), new() { ["music/skull02_1.wav"] = template, ["music/skull02_2.wav"] = template, ["music/untouched.wav"] = template });
-        WriteGfs(Path.Combine(game, "data01", "core.gfs"), new() { ["core/music.ini"] = Encoding.UTF8.GetBytes("Track: Moonlit Melee\nStage: Synthetic_Test\nFiles: skull02_1, skull02_2\n") });
+        WriteGfs(Path.Combine(game, "data01", "music-win.gfs"), new() { ["music/skull02_1.wav"] = template, ["music/skull02_2.wav"] = template, ["music/test_second_intro.wav"] = template, ["music/test_second_loop.wav"] = template, ["music/untouched.wav"] = template });
+        WriteGfs(Path.Combine(game, "data01", "core.gfs"), new() { ["core/music.ini"] = Encoding.UTF8.GetBytes("Track: Moonlit Melee\nStage: Synthetic_Test\nFiles: skull02_1, skull02_2\nTrack: Synthetic Second\nStage: Synthetic_Second\nFiles: test_second_intro, test_second_loop\n") });
         ImportChecks.Run(game, Path.Combine(output, "imports"));
         ProjectChecks.Run(game, Path.Combine(output, "projects"));
         ExportChecks.Run(game, Path.Combine(output, "exports"));
         InstallationChecks.Run(game, Path.Combine(output, "installation"));
+        CollectionChecks.Run(game, Path.Combine(output, "collections"));
         Console.WriteLine("Release fixtures passed without a real game installation or other Skullgirls tools.");
     }
     private static void WriteGfs(string path, Dictionary<string, byte[]> assets)

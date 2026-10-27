@@ -14,6 +14,7 @@ public static class SourceAudioDecoder
         [".ogg"] = "ogg", [".oga"] = "ogg", [".opus"] = "ogg", [".m4a"] = "mov",
         [".aac"] = "aac", [".wma"] = "asf", [".aiff"] = "aiff", [".aif"] = "aiff"
     };
+    public static bool SupportsFile(string path) => Demuxers.ContainsKey(Path.GetExtension(path));
     public static Decoded Decode(byte[] bytes, string extension, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();

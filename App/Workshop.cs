@@ -21,6 +21,7 @@ public sealed class Workshop : Form
     private readonly Button editLabel = MakeButton("Label clip"), resetLabel = MakeButton("Reset label"), replaceMusic = MakeButton("Replace music…");
     private readonly Button openProject = MakeButton("Open project…"), recoverDraft = MakeButton("Recover draft…");
     private readonly Button installation = MakeButton("Apply / Restore…");
+    private readonly Button modProjects = MakeButton("Mod projects…");
     private readonly ClipLabels clipLabels = new(Path.Combine(AppContext.BaseDirectory, "labels", "clip-labels.json"));
     private string? currentClipKey;
     private ClipDetails? currentDetails;
@@ -49,7 +50,7 @@ public sealed class Workshop : Form
         var root = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, Padding = new(26), ColumnCount = 1, RowCount = 5, BackColor = Ink };
         root.RowStyles.Add(new(SizeType.Absolute, 100)); root.RowStyles.Add(new(SizeType.Absolute, 50)); root.RowStyles.Add(new(SizeType.Absolute, 34)); root.RowStyles.Add(new(SizeType.Percent, 100)); root.RowStyles.Add(new(SizeType.Absolute, 32)); Controls.Add(root);
         root.Controls.Add(new DecoHeader { Dock = DockStyle.Fill }, 0, 0);
-        var location = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5 }; location.ColumnStyles.Add(new(SizeType.Percent, 100)); foreach (int width in new[] { 185, 165, 165, 175 }) location.ColumnStyles.Add(new(SizeType.Absolute, width)); location.Controls.Add(folder); location.Controls.Add(open); location.Controls.Add(openProject); location.Controls.Add(recoverDraft); location.Controls.Add(installation); root.Controls.Add(location, 0, 1);
+        var location = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6 }; location.ColumnStyles.Add(new(SizeType.Percent, 100)); foreach (int width in new[] { 185, 145, 145, 145, 175 }) location.ColumnStyles.Add(new(SizeType.Absolute, width)); location.Controls.Add(folder); location.Controls.Add(open); location.Controls.Add(openProject); location.Controls.Add(recoverDraft); location.Controls.Add(modProjects); location.Controls.Add(installation); root.Controls.Add(location, 0, 1);
         root.Controls.Add(installationNotice, 0, 2);
         var content = new BufferedTableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 }; content.ColumnStyles.Add(new(SizeType.Absolute, 390)); content.ColumnStyles.Add(new(SizeType.Percent, 100)); root.Controls.Add(content, 0, 3);
         var leftFrame = new DecoFrame("THE RECORD LIBRARY") { Dock = DockStyle.Fill, Margin = new(0, 0, 20, 0) };
@@ -75,6 +76,7 @@ public sealed class Workshop : Form
         installation.Click += async (_, _) => { if (library == null) return; Stop(); string game = library.Folder; using var dialog = new InstallationDialog(game); dialog.ShowDialog(this); if (dialog.GameFilesChanged) await LoadGame(game); };
         search.TextChanged += (_, _) => Filter(); tracks.SelectedIndexChanged += (_, _) => SelectTrack(); segments.SelectedIndexChanged += async (_, _) => { if (!updatingLabels) await LoadSegment(); };
         sources.SelectedIndexChanged += (_, _) => { if (!loadingSources) Filter(); };
+        modProjects.Click += async (_, _) => { if (library == null) { status.Text = "Open a game installation first."; return; } Stop(); using var mod = new ModProjectForm(library); mod.ShowDialog(this); if (mod.InstallationChanged) await LoadGame(library.Folder); };
         play.Click += (_, _) => Play(); pause.Click += (_, _) => Pause(); stop.Click += (_, _) => Stop();
         editLabel.Click += (_, _) => EditLabel();
         replaceMusic.Click += async (_, _) =>
